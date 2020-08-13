@@ -146,3 +146,8 @@ function export_scratch(scratch_name::String, github_repo::String)
     end
 end
 ```
+
+## Compatibility
+
+This package is marked as Julia 1.6+ due to the fact that `Pkg.gc()` will only clean up scratch spaces on Julia 1.6+.
+It is technically possible for this package to run on an older version of Julia, if you are interested in that, please open an issue.
