@@ -66,7 +66,8 @@ something weird like opening a space for a Pkg UUID that is not loadable, which 
 simply not track; that space will be reaped after the appropriate time in an orphanage.
 
 If `pkg_uuid` is explicitly set to `nothing`, this space is treated as belonging to the
-default global project at `Base.load_path_expand("@v#.#")`.
+current project, or if that does not exist, the default global project located at
+`Base.load_path_expand("@v#.#")`.
 
 While package and artifact access tracking can be done at `add()`/`instantiate()` time,
 we must do it at access time for spaces, as we have no declarative list of spaces that
@@ -83,9 +84,14 @@ function track_scratch_access(pkg_uuid::Union{UUID,Nothing}, scratch_path::Abstr
 
     function find_project_file(pkg_uuid)
         # The simplest case (`pkg_uuid` == `nothing`) simply attributes the space to
-        # the global depot environment, which will never cause the space to be GC'ed
-        # because it has been removed, as long as the depot itself is intact.
+        # the active project, and if that does not exist, the  global depot environment,
+        # which will never cause the space to be GC'ed because it has been removed,
+        # as long as the global environment within the depot itself is intact.
         if pkg_uuid === nothing
+            p = Base.active_project()
+            if p !== nothing
+                return p
+            end
             return Base.load_path_expand("@v#.#")
         end
 

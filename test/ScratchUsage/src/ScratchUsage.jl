@@ -25,8 +25,16 @@ function touch_scratch()
     touch(joinpath(major_space, string("ScratchUsage-", my_version)))
 
     # Create a global space that is not locked to this package at all
-    global_space = get_scratch!("GlobalSpace")
-    touch(joinpath(global_space, string("ScratchUsage-", my_version)))
+    # since this code is called from Pkg.test we need to pretend we are
+    # at top level and not in the temporary Pkg.test project
+    project = Base.ACTIVE_PROJECT[]
+    Base.ACTIVE_PROJECT[] = "@v#.#"
+    try
+        global_space = get_scratch!("GlobalSpace")
+        touch(joinpath(global_space, string("ScratchUsage-", my_version)))
+    finally
+        Base.ACTIVE_PROJECT[] = project
+    end
 end
 
 end # module ScratchUsage
