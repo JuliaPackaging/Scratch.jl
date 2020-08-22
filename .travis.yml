@@ -1,0 +1,14 @@
+## Documentation: http://docs.travis-ci.com/user/languages/julia/
+language: julia
+os:
+  - linux
+  - osx
+  - windows
+julia:
+  - nightly
+branches:
+  only:
+    - master
+notifications:
+  email: false
+codecov: true
