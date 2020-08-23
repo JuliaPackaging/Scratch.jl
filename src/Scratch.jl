@@ -37,6 +37,8 @@ function scratch_dir(args...)
     end
 end
 
+const uuid_re = r"uuid\s*=\s*(?i)\"([0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12})\""
+
 """
     scratch_path(key, pkg_uuid)
 
@@ -44,7 +46,18 @@ Common utility function to return the path of a scratch space, keyed by the give
 parameters.  Users should use `get_scratch!()` for most user-facing usage.
 """
 function scratch_path(key::AbstractString, pkg_uuid::Union{UUID,Nothing} = nothing)
-    # If we were not given a UUID, we use the "global space" UUID:
+    # If we were not given a UUID, check if the active project has a UUID
+    if pkg_uuid === nothing
+        project = Base.active_project()
+        if project !== nothing && isfile(project)
+            str = read(project, String)
+            if (m = match(uuid_re, str); m !== nothing)
+                pkg_uuid = UUID(m[1])
+            end
+        end
+    end
+
+    # If we still haven't found a UUID, fall back to the "global namespace"
     if pkg_uuid === nothing
         pkg_uuid = UUID(UInt128(0))
     end
