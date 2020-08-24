@@ -16,7 +16,7 @@ function temp_pkg_dir(fn::Function; rm=true)
             try
                 push!(LOAD_PATH, "@", "@v#.#", "@stdlib")
                 push!(DEPOT_PATH, depot_dir)
-                Pkg.develop(path=dirname(@__DIR__))
+                Pkg.develop(path=dirname(@__DIR__); io=pkgio)
                 fn(env_dir)
             finally
                 try
@@ -52,7 +52,8 @@ function install_test_ScratchUsage(project_path::String, version::VersionNumber)
     write(fpath, replace(read(fpath, String), "99.99.99" => string(version)))
 
     # dev() that path, to add it to the environment, then test it!
-    @show Base.active_project()
-    Pkg.develop(path=joinpath(project_path, "ScratchUsage"))
-    Pkg.test("ScratchUsage")
+    Pkg.develop(path=joinpath(project_path, "ScratchUsage"); io=pkgio)
+    redirect_stderr(pkgio) do; redirect_stdout(pkgio) do
+        Pkg.test("ScratchUsage"; io=pkgio)
+    end end
 end
