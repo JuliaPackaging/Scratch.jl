@@ -1,6 +1,10 @@
 using Scratch, Test, Dates, Pkg
 include("utils.jl")
 
+# Set to true for verbose Pkg output
+const verbose = false
+global const pkgio = verbose ? stderr : devnull
+
 @testset "Scrach Space Basics" begin
     # Run everything in a separate depot, so that we can test GC'ing and whatnot
     temp_pkg_dir() do project_dir
@@ -93,7 +97,7 @@ end
         @test length(readdir(scratch_dir(global_uuid, "GlobalSpace"))) == 1
 
         # Test that a gc() doesn't remove anything, and that there is no orphanage
-        Pkg.gc()
+        Pkg.gc(; io=pkgio)
         orphaned_path = joinpath(first(Base.DEPOT_PATH), "logs", "orphaned.toml")
         @test isfile(scratch_dir(su_uuid, "1.0.0", "ScratchUsage-1.0.0"))
         @test isfile(scratch_dir(global_uuid, "GlobalSpace", "ScratchUsage-1.0.0"))
@@ -101,9 +105,9 @@ end
 
         # Remove ScrachUsage, which causes the package (but not the scratch dirs)
         # to move to the orphanage
-        Pkg.rm("ScratchUsage")
+        Pkg.rm("ScratchUsage"; io=pkgio)
         rm(joinpath(project_dir, "ScratchUsage"); force=true, recursive=true)
-        Pkg.gc()
+        Pkg.gc(; io=pkgio)
 
         @test isfile(scratch_dir(su_uuid, "1.0.0", "ScratchUsage-1.0.0"))
         @test isfile(scratch_dir(global_uuid, "GlobalSpace", "ScratchUsage-1.0.0"))
@@ -116,7 +120,7 @@ end
         # Run a GC, forcing collection to ensure that everything in the SpaceUsage
         # namespace gets removed (but still appears in the orphanage)
         sleep(0.2)
-        Pkg.gc(;collect_delay=Millisecond(100))
+        Pkg.gc(;collect_delay=Millisecond(100), io=pkgio)
         @test !isdir(scratch_dir(su_uuid))
         @test isdir(scratch_dir(global_uuid, "GlobalSpace"))
         orphanage = Pkg.TOML.parse(String(read(orphaned_path)))
