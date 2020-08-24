@@ -75,6 +75,27 @@ end
 
         clear_scratchspaces!(Base.UUID(su_uuid))
         @test !isdir(scratch_dir(su_uuid))
+
+        # UUID lookup for active project when running in Main
+        ## Activate a new empty project
+        old_project = Base.ACTIVE_PROJECT[]
+        project = joinpath(mktempdir(), "Project.toml")
+        Base.ACTIVE_PROJECT[] = project
+        @test (@__MODULE__) == Main
+        ## Project.toml without UUID
+        path = @get_scratch!("project-no-uuid")
+        @test isdir(path)
+        @test path == scratch_dir(global_uuid, "project-no-uuid")
+        ## Project.toml with UUID
+        project_uuid = "69386cca-e009-4a96-a0ae-829213699cfc"
+        open(project, "w") do io
+            println(io, "uuid = \"$(project_uuid)\"")
+        end
+        path = @get_scratch!("project-uuid")
+        @test isdir(path)
+        @test path == scratch_dir(project_uuid, "project-uuid")
+        ## Reset project
+        Base.ACTIVE_PROJECT[] = old_project
     end
 end
 
