@@ -3,7 +3,7 @@ include("utils.jl")
 
 # Set to true for verbose Pkg output
 const verbose = false
-global const pkgio = verbose ? stderr : devnull
+global const pkgio = verbose ? stderr : (VERSION < v"1.6.0-DEV.254" ? mktemp()[2] : devnull)
 
 @testset "Scrach Space Basics" begin
     # Run everything in a separate depot, so that we can test GC'ing and whatnot
@@ -103,8 +103,8 @@ end
     end
 end
 
-
-@testset "Scratch Space Lifecycling" begin
+# Run GC tests only on Julia >1.6
+@testset "Scratch Space Lifecycling" begin; if VERSION >= v"1.6.0-DEV.676"
     temp_pkg_dir() do project_dir
         # First, install ScratchUsage
         su_uuid = "93485645-17f1-6f3b-45bc-419db53815ea"
@@ -149,4 +149,4 @@ end
         @test haskey(orphanage, scratch_dir(su_uuid, "1"))
         @test !haskey(orphanage, scratch_dir(global_uuid, "GlobalSpace"))
     end
-end
+end end
