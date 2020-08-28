@@ -91,13 +91,28 @@ end
         @test isdir(path)
         @test path == scratch_dir(global_uuid, "project-no-uuid")
         ## Project.toml with UUID
-        project_uuid = "69386cca-e009-4a96-a0ae-829213699cfc"
+        project_uuid = Base.UUID("69386cca-e009-4a96-a0ae-829213699cfc")
         open(project, "w") do io
             println(io, "uuid = \"$(project_uuid)\"")
         end
         path = @get_scratch!("project-uuid")
         @test isdir(path)
-        @test path == scratch_dir(project_uuid, "project-uuid")
+        @test path == scratch_dir(string(project_uuid), "project-uuid")
+        ## Reset project
+        Base.ACTIVE_PROJECT[] = old_project
+
+        # Cross-package scratch usage: Test that the scratch space is namespaced
+        # to the other package, but tracked to me when it comes to lifecycling
+        # the other package uuid, but the scratchspace is
+        other_uuid = Base.UUID("6dc9890c-246d-42f7-b07c-3ce39ca50d56")
+        ## Activate test-project from above again
+        Base.ACTIVE_PROJECT[] = project
+        path = get_scratch!("hello-there", other_uuid, project_uuid)
+        ## Test that the path is namespaced to other_uuid, but lifecycled with me
+        @test path == scratch_dir(string(other_uuid), "hello-there")
+        usage_path = joinpath(first(Base.DEPOT_PATH), "logs", "scratch_usage.toml")
+        usage = Pkg.TOML.parsefile(usage_path)
+        @test project ∈ usage[path][1]["parent_projects"]
         ## Reset project
         Base.ACTIVE_PROJECT[] = old_project
     end

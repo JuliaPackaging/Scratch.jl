@@ -39,29 +39,28 @@ end
 
 const uuid_re = r"uuid\s*=\s*(?i)\"([0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12})\""
 
+find_uuid(uuid::UUID) = uuid
+find_uuid(mod::Module) = find_uuid(Base.PkgId(parent_pkg).uuid)
+function find_uuid(::Nothing)
+    # Try and see if the current project has a UUID
+    project = Base.active_project()
+    if project !== nothing && isfile(project)
+        str = read(project, String)
+        if (m = match(uuid_re, str); m !== nothing)
+            return UUID(m[1])
+        end
+    end
+    # If we still haven't found a UUID, fall back to the "global namespace"
+    return UUID(UInt128(0))
+end
+
 """
     scratch_path(key, pkg_uuid)
 
 Common utility function to return the path of a scratch space, keyed by the given
 parameters.  Users should use `get_scratch!()` for most user-facing usage.
 """
-function scratch_path(key::AbstractString, pkg_uuid::Union{UUID,Nothing} = nothing)
-    # If we were not given a UUID, check if the active project has a UUID
-    if pkg_uuid === nothing
-        project = Base.active_project()
-        if project !== nothing && isfile(project)
-            str = read(project, String)
-            if (m = match(uuid_re, str); m !== nothing)
-                pkg_uuid = UUID(m[1])
-            end
-        end
-    end
-
-    # If we still haven't found a UUID, fall back to the "global namespace"
-    if pkg_uuid === nothing
-        pkg_uuid = UUID(UInt128(0))
-    end
-
+function scratch_path(key::AbstractString, pkg_uuid::UUID)
     return scratch_dir(string(pkg_uuid), key)
 end
 
@@ -71,7 +70,7 @@ scratch_access_timers = Dict{String,Float64}()
     track_scratch_access(pkg_uuid, scratch_path)
 
 We need to keep track of who is using which spaces, so we know when it is advisable to
-remove them during a GC.  We do this by attributing accesses of spaces to `Prokect.toml`
+remove them during a GC.  We do this by attributing accesses of spaces to `Project.toml`
 files in much the same way that package versions themselves are logged upon install, only
 instead of having the project information implicitly available, we must rescue it out
 from the currently-active Pkg Env.  If we cannot do that, it is because someone is doing
@@ -88,19 +87,19 @@ a package may or may not access throughout its lifetime.  To avoid building up a
 ludicrously large number of accesses through programs that e.g. call `get_scratch!()` in a
 loop, we only write out usage information for each space once per day at most.
 """
-function track_scratch_access(pkg_uuid::Union{UUID,Nothing}, scratch_path::AbstractString)
+function track_scratch_access(pkg_uuid::UUID, scratch_path::AbstractString)
     # Don't write this out more than once per day within the same Julia session.
     curr_time = time()
     if get(scratch_access_timers, scratch_path, 0.0) >= curr_time - 60*60*24
         return
     end
 
-    function find_project_file(pkg_uuid)
-        # The simplest case (`pkg_uuid` == `nothing`) simply attributes the space to
+    function find_project_file(pkg_uuid::UUID)
+        # The simplest case (`pkg_uuid` == UUID(0)) simply attributes the space to
         # the active project, and if that does not exist, the  global depot environment,
         # which will never cause the space to be GC'ed because it has been removed,
         # as long as the global environment within the depot itself is intact.
-        if pkg_uuid === nothing
+        if pkg_uuid === UUID(UInt128(0))
             p = Base.active_project()
             if p !== nothing
                 return p
@@ -114,6 +113,15 @@ function track_scratch_access(pkg_uuid::Union{UUID,Nothing}, scratch_path::Abstr
             if p.uuid == pkg_uuid
                 source_path = Base.pathof(m)
                 return Base.current_project(dirname(source_path))
+            end
+        end
+
+        # Finally, make one last desperate attempt and check if the
+        # active project has our UUID
+        if pkg_uuid === find_uuid(nothing)
+            p = Base.active_project()
+            if p !== nothing
+                return p
             end
         end
 
@@ -147,39 +155,40 @@ function track_scratch_access(pkg_uuid::Union{UUID,Nothing}, scratch_path::Abstr
 end
 
 
-const VersionConstraint = Union{VersionNumber,AbstractString,Nothing}
-
 """
-    get_scratch!(key::AbstractString, parent_pkg = nothing)
+    get_scratch!(key::AbstractString, parent_pkg = nothing, calling_pkg = parent_pkg)
 
 Returns the path to (or creates) a space.
 
 If `parent_pkg` is given (either as a `UUID` or as a `Module`), the scratch space is
 namespaced with that package's UUID, so that it will not conflict with any other space
 with the same name but a different parent package UUID.  The space's lifecycle is tied
-to that parent package, allowing the space to be garbage collected if all versions of the
-package that used it have been removed.
+to the calling package, allowing the space to be garbage collected if all versions of the
+package that used it have been removed.  By default, `parent_pkg` and `calling_pkg` are
+the same, however in rare cases a package may become dependent on a scratch space that is
+namespaced within another package, in such cases they should identify themselves as the
+`calling_pkg` so that the scratch space's lifecycle is tied to that calling package.
 
 If `parent_pkg` is not defined, or is a `Module` without a root UUID (e.g. `Main`,
-`Base`, an anonymous module, etc...) the created scratch space is parented to the global
-environment for the current version of Julia.
+`Base`, an anonymous module, etc...) the created scratch space is namespaced within the
+global environment for the current version of Julia.
 
-Scratch spaces are removed if all parent projects that have accessed them are removed.
+Scratch spaces are removed if all calling projects that have accessed them are removed.
 As an example, if a scratch space is used by two versions of the same package but not a
 newer version, when the two older versions are removed the scratch space may be garbage
 collected.  See `Pkg.gc()` and `track_scratch_access()` for more details.
 """
-function get_scratch!(key::AbstractString, parent_pkg::Union{UUID,Nothing} = nothing)
+function get_scratch!(key::AbstractString, parent_pkg::Union{Module,UUID,Nothing} = nothing,
+                                           calling_pkg::Union{Module,UUID,Nothing} = parent_pkg)
+    parent_pkg = find_uuid(parent_pkg)
+    calling_pkg = find_uuid(calling_pkg)
     # Calculate the path and create the containing folder
     path = scratch_path(key, parent_pkg)
     mkpath(path)
 
     # We need to keep track of who is using which spaces, so we track usage in a log
-    track_scratch_access(parent_pkg, path)
+    track_scratch_access(calling_pkg, path)
     return path
-end
-function get_scratch!(key::AbstractString, parent_pkg::Module)
-    return get_scratch!(key, Base.PkgId(parent_pkg).uuid)
 end
 
 """
@@ -187,14 +196,12 @@ end
 
 Explicitly deletes a scratch space created through `get_scratch!()`.
 """
-function delete_scratch!(key::AbstractString, parent_pkg::Union{UUID,Nothing} = nothing)
+function delete_scratch!(key::AbstractString, parent_pkg::Union{Module,UUID,Nothing} = nothing)
+    parent_pkg = find_uuid(parent_pkg)
     path = scratch_path(key, parent_pkg)
     rm(path; force=true, recursive=true)
     delete!(scratch_access_timers, path)
     return nothing
-end
-function delete_scratch!(key::AbstractString, parent_pkg::Module)
-    return delete_scratch!(key, Base.PkgId(parent_pkg).uuid)
 end
 
 """
@@ -209,11 +216,16 @@ function clear_scratchspaces!()
 end
 
 """
-    clear_scratchspaces!(parent_pkg::UUID)
+    clear_scratchspaces!(parent_pkg::Union{Module,UUID})
 
-Delete all scratch spaces for the given package
+Delete all scratch spaces for the given package.
 """
-function clear_scratchspaces!(parent_pkg::UUID)
+function clear_scratchspaces!(parent_pkg::Union{Module,UUID,Nothing})
+    parent_pkg = find_uuid(parent_pkg)
+    if parent_pkg === UUID(UInt128(0))
+        # TODO: Why not make this a way to clear the global scratchspace ??
+        throw(ArgumentError("Cannot find owning package for module"))
+    end
     parent_prefix = scratch_dir(string(parent_pkg))
     for path in collect(keys(scratch_access_timers))
         if startswith(path, parent_prefix)
@@ -223,20 +235,6 @@ function clear_scratchspaces!(parent_pkg::UUID)
     # Next, clean up any other scratch dirs (we don't have to worry about resetting timers here)
     rm(scratch_dir(string(parent_pkg)); force=true, recursive=true)
     return nothing
-end
-
-"""
-    clear_scratchspaces!(m::Module)
-
-Delete all scratch spaces for the package that owns the given `Module`.  Throws an
-`ArgumentError` if the `Module` does not belong to a package.
-"""
-function clear_scratchspaces!(m::Module)
-    uuid = Base.PkgId(__module__).uuid
-    if uuid === nothing
-        throw(ArgumentError("Cannot find owning package for Module $(m)"))
-    end
-    return clear_scratchspaces!(uuid)
 end
 
 """
@@ -252,7 +250,7 @@ macro get_scratch!(key)
     # create a global scratch space.
     uuid = Base.PkgId(__module__).uuid
     return quote
-        get_scratch!($(esc(key)), $(esc(uuid)))
+        get_scratch!($(esc(key)), $(esc(uuid)), $(esc(uuid)))
     end
 end
 
