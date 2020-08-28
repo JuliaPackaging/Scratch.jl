@@ -35,6 +35,11 @@ global const pkgio = verbose ? stderr : (VERSION < v"1.6.0-DEV.254" ? mktemp()[2
         # Delete the scratch space, ensure it's gone.
         delete_scratch!("test")
         @test !isdir(dir)
+
+        # Key verification
+        @test_throws ArgumentError get_scratch!("")
+        @test_throws ArgumentError get_scratch!("hello/world")
+        @test_throws ArgumentError get_scratch!("hello\\world")
     end
 end
 

@@ -180,6 +180,12 @@ collected.  See `Pkg.gc()` and `track_scratch_access()` for more details.
 """
 function get_scratch!(key::AbstractString, parent_pkg::Union{Module,UUID,Nothing} = nothing,
                                            calling_pkg::Union{Module,UUID,Nothing} = parent_pkg)
+    # Verify that the key is valid (only needed here at construction time)
+    if match(r"^[a-zA-Z0-9-\.]+$", key) === nothing
+        throw(ArgumentError(
+            "invalid key \"$key\": keys may only include a-z, A-Z, 0-9, - and ."
+            ))
+    end
     parent_pkg = find_uuid(parent_pkg)
     calling_pkg = find_uuid(calling_pkg)
     # Calculate the path and create the containing folder
