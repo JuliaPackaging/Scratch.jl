@@ -148,7 +148,7 @@ function track_scratch_access(pkg_uuid::UUID, scratch_path::AbstractString)
         "time = ", string(now()), "Z\n",
         "parent_projects = [\"", escape_string(abspath(project_file)), "\"]\n",
     )
-    usage_file = joinpath(first(Base.DEPOT_PATH), "logs", "scratch_usage.toml")
+    usage_file = usage_toml()
     mkpath(dirname(usage_file))
     open(usage_file, append=true) do io
         write(io, toml_entry)
@@ -157,6 +157,8 @@ function track_scratch_access(pkg_uuid::UUID, scratch_path::AbstractString)
     # Record that we did, in fact, write out the space access time
     scratch_access_timers[(pkg_uuid, scratch_path)] = curr_time
 end
+
+usage_toml() = joinpath(first(Base.DEPOT_PATH), "logs", "scratch_usage.toml")
 
 # We clear the access timers from every entry referencing this path
 # even if the calling package might not match. This is safer,

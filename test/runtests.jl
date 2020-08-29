@@ -5,7 +5,7 @@ include("utils.jl")
 const verbose = false
 global const pkgio = verbose ? stderr : (VERSION < v"1.6.0-DEV.254" ? mktemp()[2] : devnull)
 
-@testset "Scrach Space Basics" begin
+@testset "Scratch Space Basics" begin
     # Run everything in a separate depot, so that we can test GC'ing and whatnot
     temp_pkg_dir() do project_dir
         # Create a global scratch space, ensure it exists and is writable
@@ -18,7 +18,7 @@ global const pkgio = verbose ? stderr : (VERSION < v"1.6.0-DEV.254" ? mktemp()[2
         # Test that this created a `scratch_usage.toml` file, and that accessing it
         # again does not increase the size of the scratch_usage.toml file, since we
         # only mark usage once every so often per julia session.
-        usage_path = joinpath(first(Base.DEPOT_PATH), "logs", "scratch_usage.toml")
+        usage_path = Scratch.usage_toml()
         @test isfile(usage_path)
         size = filesize(usage_path)
         dir = get_scratch!("test")
@@ -86,40 +86,62 @@ end
         @test !isdir(scratch_dir(su_uuid))
 
         # UUID lookup for active project when running in Main
-        ## Activate a new empty project
-        old_project = Base.ACTIVE_PROJECT[]
-        project = joinpath(mktempdir(), "Project.toml")
-        Base.ACTIVE_PROJECT[] = project
-        @test (@__MODULE__) == Main
         ## Project.toml without UUID
-        path = @get_scratch!("project-no-uuid")
-        @test isdir(path)
-        @test path == scratch_dir(global_uuid, "project-no-uuid")
+        project = temp_project_file()
+        with_active_project(project) do
+            @test (@__MODULE__) == Main
+            ## Project.toml without UUID
+            path = @get_scratch!("project-no-uuid")
+            @test isdir(path)
+            @test path == scratch_dir(global_uuid, "project-no-uuid")
+        end
         ## Project.toml with UUID
         project_uuid = Base.UUID("69386cca-e009-4a96-a0ae-829213699cfc")
-        open(project, "w") do io
-            println(io, "uuid = \"$(project_uuid)\"")
-        end
-        path = @get_scratch!("project-uuid")
-        @test isdir(path)
-        @test path == scratch_dir(string(project_uuid), "project-uuid")
-        ## Reset project
-        Base.ACTIVE_PROJECT[] = old_project
+        project = temp_project_file(project_uuid)
+        with_active_project(project) do
+            path = @get_scratch!("project-uuid")
+            @test isdir(path)
+            @test path == scratch_dir(string(project_uuid), "project-uuid")
+        end # do
 
         # Cross-package scratch usage: Test that the scratch space is namespaced
         # to the other package, but tracked to me when it comes to lifecycling
         # the other package uuid, but the scratchspace is
         other_uuid = Base.UUID("6dc9890c-246d-42f7-b07c-3ce39ca50d56")
         ## Activate test-project from above again
-        Base.ACTIVE_PROJECT[] = project
-        path = get_scratch!("hello-there", other_uuid, project_uuid)
-        ## Test that the path is namespaced to other_uuid, but lifecycled with me
-        @test path == scratch_dir(string(other_uuid), "hello-there")
-        usage_path = joinpath(first(Base.DEPOT_PATH), "logs", "scratch_usage.toml")
-        usage = Pkg.TOML.parsefile(usage_path)
-        @test project ∈ usage[path][1]["parent_projects"]
-        ## Reset project
-        Base.ACTIVE_PROJECT[] = old_project
+        with_active_project(project) do
+            path = get_scratch!("hello-there", other_uuid, project_uuid)
+            ## Test that the path is namespaced to other_uuid, but lifecycled with me
+            @test path == scratch_dir(string(other_uuid), "hello-there")
+            usage_path = usage_path = Scratch.usage_toml()
+            usage = Pkg.TOML.parsefile(usage_path)
+            @test project ∈ usage[path][1]["parent_projects"]
+        end
+
+        # Internal scratch access tracking
+        empty!(Scratch.scratch_access_timers)
+        usage_path = usage_path = Scratch.usage_toml()
+        project2 = temp_project_file(other_uuid)
+        with_active_project(project) do
+            ## This should track project_uuid as the user
+            path = get_scratch!("general-kenobi", project_uuid)
+            @test project_uuid ∈ first.(keys(Scratch.scratch_access_timers))
+            usage = Pkg.TOML.parsefile(usage_path)
+            @test any(project ∈ record["parent_projects"] for record in usage[path])
+        end
+        with_active_project(project2) do
+            ## Reaching for the same space as another owner should (i) track this
+            ## usage and (ii) write to scratch_usage.toml since this belongs to
+            ## another project file
+            path = get_scratch!("general-kenobi", project_uuid, other_uuid)
+            @test other_uuid ∈ first.(keys(Scratch.scratch_access_timers))
+            usage = Pkg.TOML.parsefile(usage_path)
+            @test any(project2 ∈ record["parent_projects"] for record in usage[path])
+        end
+        ## Deleting the path should remove both UUIDs from the timers
+        delete_scratch!("general-kenobi", project_uuid)
+        @test project_uuid ∉ first.(keys(Scratch.scratch_access_timers))
+        @test other_uuid ∉ first.(keys(Scratch.scratch_access_timers))
     end
 end
 

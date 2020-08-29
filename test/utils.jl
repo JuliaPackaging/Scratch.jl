@@ -38,6 +38,27 @@ function temp_pkg_dir(fn::Function; rm=true)
     end
 end
 
+function with_active_project(fn, project)
+    old_project = Base.ACTIVE_PROJECT[]
+    Base.ACTIVE_PROJECT[] = abspath(project)
+    try
+        fn()
+    finally
+        Base.ACTIVE_PROJECT[] = old_project
+    end
+end
+
+function temp_project_file(uuid = nothing)
+    project = joinpath(mktempdir(), "Project.toml")
+    touch(project)
+    if uuid !== nothing
+        open(project, "w") do io
+            println(io, "uuid = \"$(uuid)\"")
+        end
+    end
+    return project
+end
+
 function install_test_ScratchUsage(project_path::String, version::VersionNumber)
     # Clear out any previously-installed ScratchUsage versions
     rm(joinpath(project_path, "ScratchUsage"); force=true, recursive=true)
