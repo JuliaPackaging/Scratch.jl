@@ -55,12 +55,12 @@ function find_uuid(::Nothing)
 end
 
 """
-    scratch_path(key, pkg_uuid)
+    scratch_path(pkg_uuid, key)
 
 Common utility function to return the path of a scratch space, keyed by the given
 parameters.  Users should use `get_scratch!()` for most user-facing usage.
 """
-function scratch_path(key::AbstractString, pkg_uuid::UUID)
+function scratch_path(pkg_uuid::UUID, key::AbstractString)
     return scratch_dir(string(pkg_uuid), key)
 end
 
@@ -175,7 +175,7 @@ function prune_timers!(path)
 end
 
 """
-    get_scratch!(key::AbstractString, parent_pkg = nothing, calling_pkg = parent_pkg)
+    get_scratch!(parent_pkg = nothing, key::AbstractString, calling_pkg = parent_pkg)
 
 Returns the path to (or creates) a space.
 
@@ -197,8 +197,8 @@ As an example, if a scratch space is used by two versions of the same package bu
 newer version, when the two older versions are removed the scratch space may be garbage
 collected.  See `Pkg.gc()` and `track_scratch_access()` for more details.
 """
-function get_scratch!(key::AbstractString, parent_pkg::Union{Module,UUID,Nothing} = nothing,
-                                           calling_pkg::Union{Module,UUID,Nothing} = parent_pkg)
+function get_scratch!(parent_pkg::Union{Module,UUID,Nothing}, key::AbstractString,
+                      calling_pkg::Union{Module,UUID,Nothing} = parent_pkg)
     # Verify that the key is valid (only needed here at construction time)
     if match(r"^[a-zA-Z0-9-\.]+$", key) === nothing
         throw(ArgumentError(
@@ -208,26 +208,28 @@ function get_scratch!(key::AbstractString, parent_pkg::Union{Module,UUID,Nothing
     parent_pkg = find_uuid(parent_pkg)
     calling_pkg = find_uuid(calling_pkg)
     # Calculate the path and create the containing folder
-    path = scratch_path(key, parent_pkg)
+    path = scratch_path(parent_pkg, key)
     mkpath(path)
 
     # We need to keep track of who is using which spaces, so we track usage in a log
     track_scratch_access(calling_pkg, path)
     return path
 end
+get_scratch!(key::AbstractString) = get_scratch!(nothing, key)
 
 """
-    delete_scratch!(key, parent_pkg)
+    delete_scratch!(parent_pkg, key)
 
 Explicitly deletes a scratch space created through `get_scratch!()`.
 """
-function delete_scratch!(key::AbstractString, parent_pkg::Union{Module,UUID,Nothing} = nothing)
+function delete_scratch!(parent_pkg::Union{Module,UUID,Nothing}, key::AbstractString, )
     parent_pkg = find_uuid(parent_pkg)
-    path = scratch_path(key, parent_pkg)
+    path = scratch_path(parent_pkg, key)
     rm(path; force=true, recursive=true)
     prune_timers!(path)
     return nothing
 end
+delete_scratch!(key::AbstractString) = delete_scratch!(nothing, key)
 
 """
     clear_scratchspaces!()
@@ -276,7 +278,7 @@ macro get_scratch!(key)
     # create a global scratch space.
     uuid = Base.PkgId(__module__).uuid
     return quote
-        get_scratch!($(esc(key)), $(esc(uuid)), $(esc(uuid)))
+        get_scratch!($(esc(uuid)), $(esc(key)), $(esc(uuid)))
     end
 end
 
