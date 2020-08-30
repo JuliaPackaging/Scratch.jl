@@ -65,7 +65,11 @@ function scratch_path(key::AbstractString, pkg_uuid::UUID)
 end
 
 # Session-based space access time tracker
-scratch_access_timers = Dict{String,Float64}()
+## Should perhaps keep track of find_project_file(UUID) instead
+## but since you can only load a package once per Julia session,
+## and since these timers are reset for every session, keeping
+## track of the calling UUID should be good enough.
+const scratch_access_timers = Dict{Tuple{UUID,String},Float64}()
 """
     track_scratch_access(pkg_uuid, scratch_path)
 
@@ -90,7 +94,7 @@ loop, we only write out usage information for each space once per day at most.
 function track_scratch_access(pkg_uuid::UUID, scratch_path::AbstractString)
     # Don't write this out more than once per day within the same Julia session.
     curr_time = time()
-    if get(scratch_access_timers, scratch_path, 0.0) >= curr_time - 60*60*24
+    if get(scratch_access_timers, (pkg_uuid, scratch_path), 0.0) >= curr_time - 60*60*24
         return
     end
 
@@ -144,16 +148,31 @@ function track_scratch_access(pkg_uuid::UUID, scratch_path::AbstractString)
         "time = ", string(now()), "Z\n",
         "parent_projects = [\"", escape_string(abspath(project_file)), "\"]\n",
     )
-    usage_file = joinpath(first(Base.DEPOT_PATH), "logs", "scratch_usage.toml")
+    usage_file = usage_toml()
     mkpath(dirname(usage_file))
     open(usage_file, append=true) do io
         write(io, toml_entry)
     end
 
     # Record that we did, in fact, write out the space access time
-    scratch_access_timers[scratch_path] = curr_time
+    scratch_access_timers[(pkg_uuid, scratch_path)] = curr_time
 end
 
+usage_toml() = joinpath(first(Base.DEPOT_PATH), "logs", "scratch_usage.toml")
+
+# We clear the access timers from every entry referencing this path
+# even if the calling package might not match. This is safer,
+# since it only means that we might print out some extra entries
+# to scratch_usage.toml instead of missing to record some usage.
+function prune_timers!(path)
+    for k in keys(scratch_access_timers)
+        _, recorded_path = k
+        if path == recorded_path
+            delete!(scratch_access_timers, k)
+        end
+    end
+    return nothing
+end
 
 """
     get_scratch!(key::AbstractString, parent_pkg = nothing, calling_pkg = parent_pkg)
@@ -206,7 +225,7 @@ function delete_scratch!(key::AbstractString, parent_pkg::Union{Module,UUID,Noth
     parent_pkg = find_uuid(parent_pkg)
     path = scratch_path(key, parent_pkg)
     rm(path; force=true, recursive=true)
-    delete!(scratch_access_timers, path)
+    prune_timers!(path)
     return nothing
 end
 
@@ -233,13 +252,14 @@ function clear_scratchspaces!(parent_pkg::Union{Module,UUID,Nothing})
         throw(ArgumentError("Cannot find owning package for module"))
     end
     parent_prefix = scratch_dir(string(parent_pkg))
-    for path in collect(keys(scratch_access_timers))
+    # First prune the access timers from all references to paths belonging to this namespace
+    for (_, path) in keys(scratch_access_timers)
         if startswith(path, parent_prefix)
-            delete_scratch!(path)
+            prune_timers!(path)
         end
     end
-    # Next, clean up any other scratch dirs (we don't have to worry about resetting timers here)
-    rm(scratch_dir(string(parent_pkg)); force=true, recursive=true)
+    # Next, remove the whole namespace
+    rm(parent_prefix; force=true, recursive=true)
     return nothing
 end
 
