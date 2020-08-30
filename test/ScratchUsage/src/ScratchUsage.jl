@@ -14,8 +14,8 @@ const my_version = get_version()
 function touch_scratch()
     # Create an explicitly version-specific space
     private_space = get_scratch!(
-        string(my_version.major, ".", my_version.minor, ".", my_version.patch),
         my_uuid,
+        string(my_version.major, ".", my_version.minor, ".", my_version.patch),
     )
     touch(joinpath(private_space, string("ScratchUsage-", my_version)))
 

@@ -110,7 +110,7 @@ end
         other_uuid = Base.UUID("6dc9890c-246d-42f7-b07c-3ce39ca50d56")
         ## Activate test-project from above again
         with_active_project(project) do
-            path = get_scratch!("hello-there", other_uuid, project_uuid)
+            path = get_scratch!(other_uuid, "hello-there", project_uuid)
             ## Test that the path is namespaced to other_uuid, but lifecycled with me
             @test path == scratch_dir(string(other_uuid), "hello-there")
             usage_path = usage_path = Scratch.usage_toml()
@@ -124,7 +124,7 @@ end
         project2 = temp_project_file(other_uuid)
         with_active_project(project) do
             ## This should track project_uuid as the user
-            path = get_scratch!("general-kenobi", project_uuid)
+            path = get_scratch!(project_uuid, "general-kenobi")
             @test project_uuid ∈ first.(keys(Scratch.scratch_access_timers))
             usage = Pkg.TOML.parsefile(usage_path)
             @test any(project ∈ record["parent_projects"] for record in usage[path])
@@ -133,13 +133,13 @@ end
             ## Reaching for the same space as another owner should (i) track this
             ## usage and (ii) write to scratch_usage.toml since this belongs to
             ## another project file
-            path = get_scratch!("general-kenobi", project_uuid, other_uuid)
+            path = get_scratch!(project_uuid, "general-kenobi", other_uuid)
             @test other_uuid ∈ first.(keys(Scratch.scratch_access_timers))
             usage = Pkg.TOML.parsefile(usage_path)
             @test any(project2 ∈ record["parent_projects"] for record in usage[path])
         end
         ## Deleting the path should remove both UUIDs from the timers
-        delete_scratch!("general-kenobi", project_uuid)
+        delete_scratch!(project_uuid, "general-kenobi")
         @test project_uuid ∉ first.(keys(Scratch.scratch_access_timers))
         @test other_uuid ∉ first.(keys(Scratch.scratch_access_timers))
     end

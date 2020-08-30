@@ -43,7 +43,7 @@ Note that we initialize the `download_cache` within `__init__()` so that our pac
 This makes use of the `@get_scratch!()` macro, which is identical to the `get_scratch!()` method, except it automatically determines the UUID of the calling module, if possible. The user can manually pass in a `Module` as well for a slightly more verbose incantation:
 ```julia
 function __init__()
-    global download_cache = get_scratch!("downloaded_files", @__MODULE__)
+    global download_cache = get_scratch!(@__MODULE__, "downloaded_files")
 end
 ```
 
