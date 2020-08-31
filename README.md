@@ -1,7 +1,6 @@
 # Scratch.jl
 
-This repository implements the scratch spaces API for package-specific mutable c
-ontainers of data.
+This repository implements the scratch spaces API for package-specific mutable containers of data.
 These spaces can contain datasets, text, binaries, or any other kind of data that would be convenient to store in a location specific to your package.
 As compared to [Artifacts](https://julialang.github.io/Pkg.jl/latest/artifacts/), these containers of data are mutable.
 Because the scratch space location on disk is not very user-friendly, scratch spaces should, in general, not be used for a storing files that the user must interact with through a file browser.
