@@ -116,7 +116,9 @@ function track_scratch_access(pkg_uuid::UUID, scratch_path::AbstractString)
         for (p, m) in Base.loaded_modules
             if p.uuid == pkg_uuid
                 source_path = Base.pathof(m)
-                return Base.current_project(dirname(source_path))
+                if source_path !== nothing
+                    return Base.current_project(dirname(source_path))
+                end
             end
         end
 
