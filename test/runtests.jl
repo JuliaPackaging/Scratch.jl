@@ -94,6 +94,7 @@ end
             path = @get_scratch!("project-no-uuid")
             @test isdir(path)
             @test path == scratch_dir(global_uuid, "project-no-uuid")
+            @test path === get_scratch!(@__MODULE__, "project-no-uuid")
         end
         ## Project.toml with UUID
         project_uuid = Base.UUID("69386cca-e009-4a96-a0ae-829213699cfc")
@@ -102,6 +103,7 @@ end
             path = @get_scratch!("project-uuid")
             @test isdir(path)
             @test path == scratch_dir(string(project_uuid), "project-uuid")
+            @test path === get_scratch!(@__MODULE__, "project-uuid")
         end # do
 
         # Cross-package scratch usage: Test that the scratch space is namespaced

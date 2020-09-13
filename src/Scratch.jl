@@ -40,7 +40,7 @@ end
 const uuid_re = r"uuid\s*=\s*(?i)\"([0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12})\""
 
 find_uuid(uuid::UUID) = uuid
-find_uuid(mod::Module) = find_uuid(Base.PkgId(parent_pkg).uuid)
+find_uuid(mod::Module) = find_uuid(Base.PkgId(mod).uuid)
 function find_uuid(::Nothing)
     # Try and see if the current project has a UUID
     project = Base.active_project()
