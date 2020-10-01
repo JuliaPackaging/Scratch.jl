@@ -37,6 +37,7 @@ global const pkgio = verbose ? stderr : (VERSION < v"1.6.0-DEV.254" ? mktemp()[2
         @test !isdir(dir)
 
         # Key verification
+        @test isdir(get_scratch!("abcABC123._-"))
         @test_throws ArgumentError get_scratch!("")
         @test_throws ArgumentError get_scratch!("hello/world")
         @test_throws ArgumentError get_scratch!("hello\\world")
