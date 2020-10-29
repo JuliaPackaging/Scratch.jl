@@ -53,7 +53,7 @@ For a full listing of docstrings and methods, see the [Scratch Space Reference](
 
 ## Tips and Tricks
 
-> Can I trigger data regeneration if the scratch space is found to be empty/files are missing?
+### Can I trigger data regeneration if the scratch space is found to be empty/files are missing?
 
 Yes, this is quite simple; just check the contents of the directory when you first call `get_scratch!()`, and if it's empty, run your generation function:
 
@@ -71,7 +71,7 @@ end
 
 This ensures your package is resilient against situations such as scratch spaces being deleted by a user that has called `clear_scratchspaces!()` to free up disk space.
 
-> Can I create a scratch space that is not shared across versions of my package?
+### Can I create a scratch space that is not shared across versions of my package?
 
 Yes!  Make use of the `key` parameter and the version of your package at compile-time:
 
@@ -98,14 +98,14 @@ end
 end # module
 ```
 
-> When should I use scratch spaces, and when should I use Artifacts?
+### When should I use scratch spaces, and when should I use Artifacts?
 
 Artifacts should, in general, be used when dealing with storing data that is write-once, read-many times.
 Because Artifacts are read-only and are content-addressed, this enables very easy transmission of Artifacts from machine to machine, and is why we use them extensively in the package ecosystem.
 Scratch spaces, on the other hand, are mutable and not easily distributed, they should generally follow a write-many, read-many access pattern.
 Scratch spaces are well-suited for storing machine-specific data, such as compiled objects, results of host introspection, or user-specific data.
 
-> Can I use a scratch space as a temporary workspace, then turn it into an Artifact?
+### Can I use a scratch space as a temporary workspace, then turn it into an Artifact?
 
 Yes!  Once you're satisfied with your dataset that has been cooking inside a space, and you're ready to share it with the world as an immutable artifact, you can use `create_artifact()` to create an artifact from the space, `archive_artifact()` to get a tarball that you can upload somewhere, and `bind_artifact!()` to write out an `Artifacts.toml` that allows others to download and use it:
 
