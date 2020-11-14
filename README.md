@@ -86,7 +86,7 @@ end
 const pkg_version = get_version()
 
 # This will be filled in by `__init__()`; it might change if we get deployed somewhere
-version_specific_scratch = Ref{String}()
+const version_specific_scratch = Ref{String}()
 
 function __init__()
     # This space will be unique between versions of my package that different major and
