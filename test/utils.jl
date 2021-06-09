@@ -1,3 +1,5 @@
+maybe_io(io) = VERSION < v"1.4" ? NamedTuple() : (; io = io)
+
 function temp_pkg_dir(fn::Function; rm=true)
     old_load_path = copy(LOAD_PATH)
     old_depot_path = copy(DEPOT_PATH)
@@ -16,7 +18,7 @@ function temp_pkg_dir(fn::Function; rm=true)
             try
                 push!(LOAD_PATH, "@", "@v#.#", "@stdlib")
                 push!(DEPOT_PATH, depot_dir)
-                Pkg.develop(PackageSpec(path=dirname(@__DIR__)); io=pkgio)
+                Pkg.develop(PackageSpec(path=dirname(@__DIR__)); maybe_io(pkgio)...)
                 fn(env_dir)
             finally
                 try
@@ -73,8 +75,8 @@ function install_test_ScratchUsage(project_path::String, version::VersionNumber)
     write(fpath, replace(read(fpath, String), "99.99.99" => string(version)))
 
     # dev() that path, to add it to the environment, then test it!
-    Pkg.develop(PackageSpec(path=joinpath(project_path, "ScratchUsage")); io=pkgio)
+    Pkg.develop(PackageSpec(path=joinpath(project_path, "ScratchUsage")); maybe_io(pkgio)...)
     redirect_stderr(pkgio) do; redirect_stdout(pkgio) do
-        Pkg.test("ScratchUsage"; io=pkgio)
+        Pkg.test("ScratchUsage"; maybe_io(pkgio)...)
     end end
 end
