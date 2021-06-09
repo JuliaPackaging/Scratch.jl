@@ -105,7 +105,7 @@ function track_scratch_access(pkg_uuid::UUID, scratch_path::AbstractString)
         # as long as the global environment within the depot itself is intact.
         if pkg_uuid === UUID(UInt128(0))
             p = Base.active_project()
-            if p !== nothing
+            if p !== nothing && isfile(p)
                 return p
             end
             return Base.load_path_expand("@v#.#")

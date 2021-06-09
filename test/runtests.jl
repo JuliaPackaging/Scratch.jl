@@ -149,49 +149,51 @@ end
 end
 
 # Run GC tests only on Julia >1.6
-@testset "Scratch Space Lifecycling" begin; if VERSION >= v"1.6.0-DEV.676"
-    temp_pkg_dir() do project_dir
-        # First, install ScratchUsage
-        su_uuid = "93485645-17f1-6f3b-45bc-419db53815ea"
-        global_uuid = string(Base.UUID(UInt128(0)))
-        install_test_ScratchUsage(project_dir, v"1.0.0")
+if VERSION >= v"1.6.0-DEV.676"
+    @testset "Scratch Space Lifecycling" begin
+        temp_pkg_dir() do project_dir
+            # First, install ScratchUsage
+            su_uuid = "93485645-17f1-6f3b-45bc-419db53815ea"
+            global_uuid = string(Base.UUID(UInt128(0)))
+            install_test_ScratchUsage(project_dir, v"1.0.0")
 
-        # Ensure that a few files were created
-        @test isfile(scratch_dir(su_uuid, "1.0.0", "ScratchUsage-1.0.0"))
-        @test length(readdir(scratch_dir(su_uuid, "1.0.0"))) == 1
-        @test isfile(scratch_dir(global_uuid, "GlobalSpace", "ScratchUsage-1.0.0"))
-        @test length(readdir(scratch_dir(global_uuid, "GlobalSpace"))) == 1
+            # Ensure that a few files were created
+            @test isfile(scratch_dir(su_uuid, "1.0.0", "ScratchUsage-1.0.0"))
+            @test length(readdir(scratch_dir(su_uuid, "1.0.0"))) == 1
+            @test isfile(scratch_dir(global_uuid, "GlobalSpace", "ScratchUsage-1.0.0"))
+            @test length(readdir(scratch_dir(global_uuid, "GlobalSpace"))) == 1
 
-        # Test that a gc() doesn't remove anything, and that there is no orphanage
-        Pkg.gc(; io=pkgio)
-        orphaned_path = joinpath(first(Base.DEPOT_PATH), "logs", "orphaned.toml")
-        @test isfile(scratch_dir(su_uuid, "1.0.0", "ScratchUsage-1.0.0"))
-        @test isfile(scratch_dir(global_uuid, "GlobalSpace", "ScratchUsage-1.0.0"))
-        @test !isfile(orphaned_path)
+            # Test that a gc() doesn't remove anything, and that there is no orphanage
+            Pkg.gc(; io=pkgio)
+            orphaned_path = joinpath(first(Base.DEPOT_PATH), "logs", "orphaned.toml")
+            @test isfile(scratch_dir(su_uuid, "1.0.0", "ScratchUsage-1.0.0"))
+            @test isfile(scratch_dir(global_uuid, "GlobalSpace", "ScratchUsage-1.0.0"))
+            @test !isfile(orphaned_path) || filesize(orphaned_path) == 0
 
-        # Remove ScrachUsage, which causes the package (but not the scratch dirs)
-        # to move to the orphanage
-        Pkg.rm("ScratchUsage"; io=pkgio)
-        rm(joinpath(project_dir, "ScratchUsage"); force=true, recursive=true)
-        Pkg.gc(; io=pkgio)
+            # Remove ScrachUsage, which causes the package (but not the scratch dirs)
+            # to move to the orphanage
+            Pkg.rm("ScratchUsage"; io=pkgio)
+            rm(joinpath(project_dir, "ScratchUsage"); force=true, recursive=true)
+            Pkg.gc(; io=pkgio)
 
-        @test isfile(scratch_dir(su_uuid, "1.0.0", "ScratchUsage-1.0.0"))
-        @test isfile(scratch_dir(global_uuid, "GlobalSpace", "ScratchUsage-1.0.0"))
-        @test isfile(orphaned_path)
-        orphanage = Pkg.TOML.parse(String(read(orphaned_path)))
-        @test haskey(orphanage, scratch_dir(su_uuid, "1.0.0"))
-        @test haskey(orphanage, scratch_dir(su_uuid, "1"))
-        @test !haskey(orphanage, scratch_dir(global_uuid, "GlobalSpace"))
+            @test isfile(scratch_dir(su_uuid, "1.0.0", "ScratchUsage-1.0.0"))
+            @test isfile(scratch_dir(global_uuid, "GlobalSpace", "ScratchUsage-1.0.0"))
+            @test isfile(orphaned_path)
+            orphanage = Pkg.TOML.parse(String(read(orphaned_path)))
+            @test haskey(orphanage, scratch_dir(su_uuid, "1.0.0"))
+            @test haskey(orphanage, scratch_dir(su_uuid, "1"))
+            @test !haskey(orphanage, scratch_dir(global_uuid, "GlobalSpace"))
 
-        # Run a GC, forcing collection to ensure that everything in the SpaceUsage
-        # namespace gets removed (but still appears in the orphanage)
-        sleep(0.2)
-        Pkg.gc(;collect_delay=Millisecond(100), io=pkgio)
-        @test !isdir(scratch_dir(su_uuid))
-        @test isdir(scratch_dir(global_uuid, "GlobalSpace"))
-        orphanage = Pkg.TOML.parse(String(read(orphaned_path)))
-        @test haskey(orphanage, scratch_dir(su_uuid, "1.0.0"))
-        @test haskey(orphanage, scratch_dir(su_uuid, "1"))
-        @test !haskey(orphanage, scratch_dir(global_uuid, "GlobalSpace"))
+            # Run a GC, forcing collection to ensure that everything in the SpaceUsage
+            # namespace gets removed (but still appears in the orphanage)
+            sleep(0.2)
+            Pkg.gc(;collect_delay=Millisecond(100), io=pkgio)
+            @test !isdir(scratch_dir(su_uuid))
+            @test isdir(scratch_dir(global_uuid, "GlobalSpace"))
+            orphanage = Pkg.TOML.parse(String(read(orphaned_path)))
+            @test haskey(orphanage, scratch_dir(su_uuid, "1.0.0"))
+            @test haskey(orphanage, scratch_dir(su_uuid, "1"))
+            @test !haskey(orphanage, scratch_dir(global_uuid, "GlobalSpace"))
+        end
     end
-end end
+end
