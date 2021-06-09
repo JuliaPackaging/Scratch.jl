@@ -148,6 +148,6 @@ end
 
 ## Compatibility
 
-The package is tested and works correctly with Julia 1.5 and above. However, Pkg's built-in
+The package is tested and works correctly with Julia 1.0 and above. However, Pkg's built-in
 garbage collection, i.e. `Pkg.gc()`, is only aware of scratchspaces for
 Julia 1.6 and above.
