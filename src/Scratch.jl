@@ -137,7 +137,6 @@ function track_scratch_access(pkg_uuid::UUID, scratch_path::AbstractString)
                     if project_path !== nothing
                         return project_path
                     end
-                    continue
                 end
             end
         end
