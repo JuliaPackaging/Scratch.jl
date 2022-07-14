@@ -37,13 +37,27 @@ function scratch_dir(args...)
     end
 end
 
+function ignore_eacces(f::Function)
+    try
+        return f()
+    catch e
+        if !isa(e, Base.IOError) || e.code != -Base.Libc.EACCES
+            rethrow(e)
+        end
+        return nothing
+    end
+end
+
 const uuid_re = r"uuid\s*=\s*(?i)\"([0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12})\""
 
 find_uuid(uuid::UUID) = uuid
 find_uuid(mod::Module) = find_uuid(Base.PkgId(mod).uuid)
 function find_uuid(::Nothing)
     # Try and see if the current project has a UUID
-    project = Base.active_project()
+    project = ignore_eacces() do
+        Base.active_project()
+    end
+
     if project !== nothing && isfile(project)
         str = read(project, String)
         if (m = match(uuid_re, str); m !== nothing)
@@ -117,7 +131,12 @@ function track_scratch_access(pkg_uuid::UUID, scratch_path::AbstractString)
             if p.uuid == pkg_uuid
                 source_path = Base.pathof(m)
                 if source_path !== nothing
-                    return Base.current_project(dirname(source_path))
+                    project_path = ignore_eacces() do
+                        Base.current_project(dirname(source_path))
+                    end
+                    if project_path !== nothing
+                        return project_path
+                    end
                 end
             end
         end

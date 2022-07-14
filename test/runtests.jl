@@ -105,6 +105,13 @@ end
             @test isdir(path)
             @test path == scratch_dir(string(project_uuid), "project-uuid")
             @test path === get_scratch!(@__MODULE__, "project-uuid")
+
+            ## Issue #29; when the Project.toml is not accessible, we should not throw an error
+            if Sys.isunix()
+                chmod(dirname(project), 0o000)
+                Scratch.track_scratch_access(project_uuid, "not a real path")
+                chmod(dirname(project), 0o755)
+            end
         end # do
 
         # Cross-package scratch usage: Test that the scratch space is namespaced
