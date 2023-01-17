@@ -148,7 +148,7 @@ end
 
 ### Can I disable logging scratch usage?
 
-You can disable logging to `logs/scratch_usage.toml` by setting `JULIA_TRACK_SCRATCH_ACCESS` to `0` in your environment.
+You can disable logging to `logs/scratch_usage.toml` by setting `JULIA_SCRATCH_TRACK_ACCESS` to `0` in your environment.
 
 ## Compatibility
 

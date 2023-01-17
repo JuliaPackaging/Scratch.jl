@@ -112,8 +112,8 @@ function track_scratch_access(pkg_uuid::UUID, scratch_path::AbstractString)
         return
     end
 
-    # Do not track scratch access when JULIA_TRACK_SCRATCH_ACCESS=0
-    get(ENV, "JULIA_TRACK_SCRATCH_ACCESS", "1") == "0" && return
+    # Do not track scratch access when JULIA_SCRATCH_TRACK_ACCESS=0
+    get(ENV, "JULIA_SCRATCH_TRACK_ACCESS", "1") == "0" && return
 
     function find_project_file(pkg_uuid::UUID)
         # The simplest case (`pkg_uuid` == UUID(0)) simply attributes the space to
