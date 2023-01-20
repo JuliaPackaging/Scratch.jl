@@ -60,7 +60,8 @@ function find_uuid(::Nothing)
 
     if project !== nothing && isfile(project)
         str = read(project, String)
-        if (m = match(uuid_re, str); m !== nothing)
+        m = match(uuid_re, str)
+        if !isnothing(m) && !isnothing(m[1])
             return UUID(m[1])
         end
     end
