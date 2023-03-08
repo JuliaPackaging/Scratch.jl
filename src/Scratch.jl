@@ -61,7 +61,7 @@ function find_uuid(::Nothing)
     if project !== nothing && isfile(project)
         str = read(project, String)
         if (m = match(uuid_re, str); m !== nothing)
-            return UUID(m[1])
+            return UUID(m[1]::SubString)
         end
     end
     # If we still haven't found a UUID, fall back to the "global namespace"
