@@ -146,6 +146,10 @@ function export_scratch(scratch_name::String, github_repo::String)
 end
 ```
 
+### Can I disable logging scratch usage?
+
+You can disable logging to `logs/scratch_usage.toml` by setting `JULIA_SCRATCH_TRACK_ACCESS` to `0` in your environment.
+
 ## Compatibility
 
 The package is tested and works correctly with Julia 1.0 and above. However, Pkg's built-in
