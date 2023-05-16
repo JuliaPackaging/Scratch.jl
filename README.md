@@ -1,5 +1,13 @@
 # Scratch.jl
 
+[![CI](https://github.com/JuliaPackaging/Scratch.jl/actions/workflows/ci.yml/badge.svg)](https://github.com/JuliaPackaging/Scratch.jl/actions/workflows/ci.yml)
+
+[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://juliapackaging.github.io/Scratch.jl/stable)
+[![](https://img.shields.io/badge/docs-latest-blue.svg)](https://juliapackaging.github.io/Scratch.jl/dev)
+
+[![codecov](https://codecov.io/gh/JuliaPackaging/Scratch.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/JuliaPackaging/Scratch.jl)
+
+
 This repository implements the scratch spaces API for package-specific mutable containers of data.
 These spaces can contain datasets, text, binaries, or any other kind of data that would be convenient to store in a location specific to your package.
 As compared to [Artifacts](https://pkgdocs.julialang.org/v1/artifacts/), these containers of data are mutable.
