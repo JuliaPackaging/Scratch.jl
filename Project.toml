@@ -5,6 +5,7 @@ version = "1.2.0"
 
 [deps]
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+Preferences = "21216c6a-2e73-6563-6e65-726566657250"
 
 [compat]
 julia = "1"
