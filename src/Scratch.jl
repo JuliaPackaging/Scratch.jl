@@ -2,6 +2,10 @@ module Scratch
 import Base: UUID
 using Dates
 
+if VERSION >= v"1.6"
+    using Preferences
+end
+
 export with_scratch_directory, scratch_dir, get_scratch!, delete_scratch!, clear_scratchspaces!, @get_scratch!
 
 const SCRATCH_DIR_OVERRIDE = Ref{Union{String,Nothing}}(nothing)
@@ -30,7 +34,18 @@ be overridden via `with_scratch_directory()`.
 """
 function scratch_dir(args...)
     if SCRATCH_DIR_OVERRIDE[] === nothing
-        return abspath(first(Base.DEPOT_PATH), "scratchspaces", args...)
+        @static if VERSION >= v"1.6"
+            scratch_base_path = @load_preference("scratch_dir", 
+                get(ENV, "JULIA_SCRATCH_DIR",
+                    joinpath(first(Base.DEPOT_PATH), "scratchspaces")
+                )
+            )
+        else
+            scratch_base_path = get(ENV, "JULIA_SCRATCH_DIR",
+                joinpath(first(Base.DEPOT_PATH), "scratchspaces")
+            )
+        end
+        return abspath(scratch_base_path, args...)
     else
         # If we've been given an override, use _only_ that directory.
         return abspath(SCRATCH_DIR_OVERRIDE[], args...)
