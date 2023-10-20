@@ -34,7 +34,7 @@ be overridden via `with_scratch_directory()`.
 """
 function scratch_dir(args...)
     if SCRATCH_DIR_OVERRIDE[] === nothing
-        if VERSION >= v"1.6"
+        @static if VERSION >= v"1.6"
             scratch_base_path = @load_preference("scratch_dir", 
                 get(ENV, "JULIA_SCRATCH_DIR",
                     joinpath(first(Base.DEPOT_PATH), "scratchspaces")
