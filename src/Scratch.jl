@@ -6,12 +6,6 @@ using Dates
     using Preferences
 end
 
-@static if VERSION >= v"1.6"
-    const scratch_base_path = @load_preference("scratch_dir", joinpath(first(Base.DEPOT_PATH), "scratchspaces"))
-else
-    const scratch_base_path = joinpath(first(Base.DEPOT_PATH), "scratchspaces")
-end
-
 export with_scratch_directory, scratch_dir, get_scratch!, delete_scratch!, clear_scratchspaces!, @get_scratch!
 
 const SCRATCH_DIR_OVERRIDE = Ref{Union{String,Nothing}}(nothing)
@@ -40,6 +34,17 @@ be overridden via `with_scratch_directory()`.
 """
 function scratch_dir(args...)
     if SCRATCH_DIR_OVERRIDE[] === nothing
+        if VERSION >= v"1.6"
+            scratch_base_path = @load_preference("scratch_dir", 
+                get(ENV, "JULIA_SCRATCH_DIR",
+                    joinpath(first(Base.DEPOT_PATH), "scratchspaces")
+                )
+            )
+        else
+            scratch_base_path = get(ENV, "JULIA_SCRATCH_DIR",
+                joinpath(first(Base.DEPOT_PATH), "scratchspaces")
+            )
+        end
         return abspath(scratch_base_path, args...)
     else
         # If we've been given an override, use _only_ that directory.
