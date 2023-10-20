@@ -2,7 +2,7 @@ module Scratch
 import Base: UUID
 using Dates
 
-@static if VERSION >= v"1.6"
+if VERSION >= v"1.6"
     using Preferences
 end
 
