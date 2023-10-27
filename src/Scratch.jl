@@ -29,11 +29,12 @@ Returns a path within the current depot's `scratchspaces` directory.  This locat
 be overridden via `with_scratch_directory()`.
 """
 function scratch_dir(args...)
-    if SCRATCH_DIR_OVERRIDE[] === nothing
+    override = SCRATCH_DIR_OVERRIDE[]
+    if override === nothing
         return abspath(first(Base.DEPOT_PATH), "scratchspaces", args...)
     else
         # If we've been given an override, use _only_ that directory.
-        return abspath(SCRATCH_DIR_OVERRIDE[], args...)
+        return abspath(override, args...)
     end
 end
 
