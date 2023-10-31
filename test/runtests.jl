@@ -205,7 +205,7 @@ if VERSION >= v"1.6.0-DEV.676"
     end
 end
 
-@static if Base.VERSION >= v"1.7
+if Base.VERSION >= v"1.7"
     using JET
 
     @testset "test_package" begin
