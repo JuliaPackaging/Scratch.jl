@@ -204,3 +204,11 @@ if VERSION >= v"1.6.0-DEV.676"
         end
     end
 end
+
+if Base.VERSION >= v"1.7"
+    using JET
+
+    @testset "test_package" begin
+        test_package("Scratch")
+    end
+end
