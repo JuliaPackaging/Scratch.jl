@@ -7,7 +7,7 @@ version = "1.2.1"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 
 [compat]
-Dates = "1"
+Dates = "<0.0.1, 1"
 julia = "1"
 
 [extras]
