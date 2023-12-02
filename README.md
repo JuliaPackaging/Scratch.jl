@@ -100,7 +100,7 @@ function __init__()
     # This space will be unique between versions of my package that different major and
     # minor versions, but allows patch releases to share the same.
     scratch_name = "data_for_version-$(pkg_version.major).$(pkg_version.minor)"
-    global version_specific_scratch[] = @get_scratch!(scratch_name)
+    version_specific_scratch[] = @get_scratch!(scratch_name)
 end
 
 end # module
