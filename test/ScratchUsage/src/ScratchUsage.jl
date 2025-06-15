@@ -1,17 +1,11 @@
 module ScratchUsage
 using Pkg, Scratch
 
-# TODO: Replace these with Pkg.API.get_uuid() and Pkg.API.get_version()
-# from https://github.com/JuliaLang/Pkg.jl/pull/1947
-const my_uuid = Base.UUID("93485645-17f1-6f3b-45bc-419db53815ea")
-function get_version()
-    project_toml = Pkg.TOML.parsefile(joinpath(dirname(@__DIR__), "Project.toml"))
-    return VersionNumber(project_toml["version"])
-end
-const my_version = get_version()
-
 # This function will create a bevy of spaces here
 function touch_scratch()
+    my_uuid = Base.PkgId(@__MODULE__).uuid
+    my_version = Base.pkgversion(@__MODULE__)
+
     # Create an explicitly version-specific space
     private_space = get_scratch!(
         my_uuid,
