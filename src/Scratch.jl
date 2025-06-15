@@ -23,15 +23,16 @@ function with_scratch_directory(f::Function, scratch_dir::String)
 end
 
 """
-    scratch_dir(args...)
+    scratch_dir(args...; depot_path=first(Base.DEPOT_PATH))
 
 Returns a path within the current depot's `scratchspaces` directory.  This location can
-be overridden via `with_scratch_directory()`.
+be overridden via `with_scratch_directory()`, which is most useful for tests not wanting
+to pollute the current depot's directory.
 """
-function scratch_dir(args...)
+function scratch_dir(args...; depot_path=first(Base.DEPOT_PATH))
     override = SCRATCH_DIR_OVERRIDE[]
     if override === nothing
-        return abspath(first(Base.DEPOT_PATH), "scratchspaces", args...)
+        return abspath(depot_path, "scratchspaces", args...)
     else
         # If we've been given an override, use _only_ that directory.
         return abspath(override, args...)
@@ -75,8 +76,8 @@ end
 Common utility function to return the path of a scratch space, keyed by the given
 parameters.  Users should use `get_scratch!()` for most user-facing usage.
 """
-function scratch_path(pkg_uuid::UUID, key::AbstractString)
-    return scratch_dir(string(pkg_uuid), key)
+function scratch_path(pkg_uuid::UUID, key::AbstractString; depot_path::String = first(Base.DEPOT_PATH))
+    return scratch_dir(string(pkg_uuid), key; depot_path)
 end
 
 # Session-based space access time tracker
@@ -86,7 +87,7 @@ end
 ## track of the calling UUID should be good enough.
 const scratch_access_timers = Dict{Tuple{UUID,String},Float64}()
 """
-    track_scratch_access(pkg_uuid, scratch_path)
+    track_scratch_access(pkg_uuid, scratch_path, depot_path, time_gate, now)
 
 We need to keep track of who is using which spaces, so we know when it is advisable to
 remove them during a GC.  We do this by attributing accesses of spaces to `Project.toml`
@@ -104,12 +105,16 @@ While package and artifact access tracking can be done at `add()`/`instantiate()
 we must do it at access time for spaces, as we have no declarative list of spaces that
 a package may or may not access throughout its lifetime.  To avoid building up a
 ludicrously large number of accesses through programs that e.g. call `get_scratch!()` in a
-loop, we only write out usage information for each space once per day at most.
+loop, we only write out usage information for each space once per day at most (configurable
+via `time_gate`).
 """
-function track_scratch_access(pkg_uuid::UUID, scratch_path::AbstractString)
+function track_scratch_access(pkg_uuid::UUID,
+                              scratch_path::AbstractString,
+                              depot_path::String = first(Base.DEPOT_PATH),
+                              time_gate::TimePeriod = Hour(24),
+                              curr_time::DateTime = Dates.now())
     # Don't write this out more than once per day within the same Julia session.
-    curr_time = time()
-    if get(scratch_access_timers, (pkg_uuid, scratch_path), 0.0) >= curr_time - 60*60*24
+    if unix2datetime(get(scratch_access_timers, (pkg_uuid, scratch_path), 0.0)) >= curr_time - time_gate
         return
     end
 
@@ -170,20 +175,20 @@ function track_scratch_access(pkg_uuid::UUID, scratch_path::AbstractString)
     # to depend on the whole TOML writer stdlib.
     toml_entry = string(
         "[[\"", escape_string(abspath(scratch_path)), "\"]]\n",
-        "time = ", string(now()), "Z\n",
+        "time = ", string(curr_time), "Z\n",
         "parent_projects = [\"", escape_string(abspath(project_file)), "\"]\n",
     )
-    usage_file = usage_toml()
+    usage_file = usage_toml(depot_path)
     mkpath(dirname(usage_file))
     open(usage_file, append=true) do io
         write(io, toml_entry)
     end
 
     # Record that we did, in fact, write out the space access time
-    scratch_access_timers[(pkg_uuid, scratch_path)] = curr_time
+    scratch_access_timers[(pkg_uuid, scratch_path)] = datetime2unix(curr_time)
 end
 
-usage_toml() = joinpath(first(Base.DEPOT_PATH), "logs", "scratch_usage.toml")
+usage_toml(depot_path::String = first(Base.DEPOT_PATH)) = joinpath(depot_path, "logs", "scratch_usage.toml")
 
 # We clear the access timers from every entry referencing this path
 # even if the calling package might not match. This is safer,
@@ -223,7 +228,10 @@ newer version, when the two older versions are removed the scratch space may be 
 collected.  See `Pkg.gc()` and `track_scratch_access()` for more details.
 """
 function get_scratch!(parent_pkg::Union{Module,UUID,Nothing}, key::AbstractString,
-                      calling_pkg::Union{Module,UUID,Nothing} = parent_pkg)
+                      calling_pkg::Union{Module,UUID,Nothing} = parent_pkg;
+                      depot_path::String = first(Base.DEPOT_PATH),
+                      time_gate::TimePeriod = Hour(24),
+                      curr_time::DateTime = Dates.now())
     # Verify that the key is valid (only needed here at construction time)
     if match(r"^[a-zA-Z0-9-\._]+$", key) === nothing
         throw(ArgumentError(
@@ -233,36 +241,36 @@ function get_scratch!(parent_pkg::Union{Module,UUID,Nothing}, key::AbstractStrin
     parent_pkg = find_uuid(parent_pkg)
     calling_pkg = find_uuid(calling_pkg)
     # Calculate the path and create the containing folder
-    path = scratch_path(parent_pkg, key)
+    path = scratch_path(parent_pkg, key; depot_path)
     mkpath(path)
 
     # We need to keep track of who is using which spaces, so we track usage in a log
-    track_scratch_access(calling_pkg, path)
+    track_scratch_access(calling_pkg, path, depot_path, time_gate, curr_time)
     return path
 end
-get_scratch!(key::AbstractString) = get_scratch!(nothing, key)
+get_scratch!(key::AbstractString; kwargs...) = get_scratch!(nothing, key; kwargs...)
 
 """
     delete_scratch!(parent_pkg, key)
 
 Explicitly deletes a scratch space created through `get_scratch!()`.
 """
-function delete_scratch!(parent_pkg::Union{Module,UUID,Nothing}, key::AbstractString, )
+function delete_scratch!(parent_pkg::Union{Module,UUID,Nothing}, key::AbstractString; depot_path::String = first(Base.DEPOT_PATH))
     parent_pkg = find_uuid(parent_pkg)
-    path = scratch_path(parent_pkg, key)
+    path = scratch_path(parent_pkg, key; depot_path)
     rm(path; force=true, recursive=true)
     prune_timers!(path)
     return nothing
 end
-delete_scratch!(key::AbstractString) = delete_scratch!(nothing, key)
+delete_scratch!(key::AbstractString; kwargs...) = delete_scratch!(nothing, key; kwargs...)
 
 """
     clear_scratchspaces!()
 
 Delete all scratch spaces in the current depot.
 """
-function clear_scratchspaces!()
-    rm(scratch_dir(); force=true, recursive=true)
+function clear_scratchspaces!(;depot_path::String = first(Base.DEPOT_PATH))
+    rm(scratch_dir(;depot_path); force=true, recursive=true)
     empty!(scratch_access_timers)
     return nothing
 end
@@ -272,13 +280,13 @@ end
 
 Delete all scratch spaces for the given package.
 """
-function clear_scratchspaces!(parent_pkg::Union{Module,UUID,Nothing})
+function clear_scratchspaces!(parent_pkg::Union{Module,UUID,Nothing}; depot_path::String = first(Base.DEPOT_PATH))
     parent_pkg = find_uuid(parent_pkg)
     if parent_pkg === UUID(UInt128(0))
         # TODO: Why not make this a way to clear the global scratchspace ??
         throw(ArgumentError("Cannot find owning package for module"))
     end
-    parent_prefix = scratch_dir(string(parent_pkg))
+    parent_prefix = scratch_dir(string(parent_pkg); depot_path)
     # First prune the access timers from all references to paths belonging to this namespace
     for (_, path) in keys(scratch_access_timers)
         if startswith(path, parent_prefix)
@@ -289,6 +297,7 @@ function clear_scratchspaces!(parent_pkg::Union{Module,UUID,Nothing})
     rm(parent_prefix; force=true, recursive=true)
     return nothing
 end
+
 
 """
     @get_scratch!(key)

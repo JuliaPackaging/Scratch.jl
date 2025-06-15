@@ -1,10 +1,9 @@
-using Scratch, Test, Dates, Pkg
+using Scratch, Test, Dates, Pkg, Pkg.TOML
 include("utils.jl")
 
 # Set to true for verbose Pkg output
 const verbose = false
-global const pkgio = verbose ? stderr : (VERSION < v"1.6.0-DEV.254" ? mktemp()[2] : devnull)
-
+global const pkgio = verbose ? stderr : devnull
 @testset "Scratch Space Basics" begin
     # Run everything in a separate depot, so that we can test GC'ing and whatnot
     temp_pkg_dir() do project_dir
@@ -155,59 +154,85 @@ end
     end
 end
 
-# Run GC tests only on Julia >1.6
-if VERSION >= v"1.6.0-DEV.676"
-    @testset "Scratch Space Lifecycling" begin
-        temp_pkg_dir() do project_dir
-            # First, install ScratchUsage
-            su_uuid = "93485645-17f1-6f3b-45bc-419db53815ea"
-            global_uuid = string(Base.UUID(UInt128(0)))
-            install_test_ScratchUsage(project_dir, v"1.0.0")
+@testset "Scratch Space Lifecycling" begin
+    temp_pkg_dir() do project_dir
+        # First, install ScratchUsage
+        su_uuid = "93485645-17f1-6f3b-45bc-419db53815ea"
+        global_uuid = string(Base.UUID(UInt128(0)))
+        install_test_ScratchUsage(project_dir, v"1.0.0")
 
-            # Ensure that a few files were created
-            @test isfile(scratch_dir(su_uuid, "1.0.0", "ScratchUsage-1.0.0"))
-            @test length(readdir(scratch_dir(su_uuid, "1.0.0"))) == 1
-            @test isfile(scratch_dir(global_uuid, "GlobalSpace", "ScratchUsage-1.0.0"))
-            @test length(readdir(scratch_dir(global_uuid, "GlobalSpace"))) == 1
+        # Ensure that a few files were created
+        @test isfile(scratch_dir(su_uuid, "1.0.0", "ScratchUsage-1.0.0"))
+        @test length(readdir(scratch_dir(su_uuid, "1.0.0"))) == 1
+        @test isfile(scratch_dir(global_uuid, "GlobalSpace", "ScratchUsage-1.0.0"))
+        @test length(readdir(scratch_dir(global_uuid, "GlobalSpace"))) == 1
 
-            # Test that a gc() doesn't remove anything, and that there is no orphanage
-            Pkg.gc(; io=pkgio)
-            orphaned_path = joinpath(first(Base.DEPOT_PATH), "logs", "orphaned.toml")
-            @test isfile(scratch_dir(su_uuid, "1.0.0", "ScratchUsage-1.0.0"))
-            @test isfile(scratch_dir(global_uuid, "GlobalSpace", "ScratchUsage-1.0.0"))
-            @test !isfile(orphaned_path) || filesize(orphaned_path) == 0
+        # Test that a gc() doesn't remove anything, and that there is no orphanage
+        Pkg.gc(; io=pkgio)
+        orphaned_path = joinpath(first(Base.DEPOT_PATH), "logs", "orphaned.toml")
+        @test isfile(scratch_dir(su_uuid, "1.0.0", "ScratchUsage-1.0.0"))
+        @test isfile(scratch_dir(global_uuid, "GlobalSpace", "ScratchUsage-1.0.0"))
+        @test !isfile(orphaned_path) || filesize(orphaned_path) == 0
 
-            # Remove ScrachUsage, which causes the package (but not the scratch dirs)
-            # to move to the orphanage
-            Pkg.rm("ScratchUsage"; io=pkgio)
-            rm(joinpath(project_dir, "ScratchUsage"); force=true, recursive=true)
-            Pkg.gc(; io=pkgio)
+        # Remove ScrachUsage, which causes the package (but not the scratch dirs)
+        # to move to the orphanage
+        Pkg.rm("ScratchUsage"; io=pkgio)
+        rm(joinpath(project_dir, "ScratchUsage"); force=true, recursive=true)
+        Pkg.gc(; io=pkgio)
 
-            @test isfile(scratch_dir(su_uuid, "1.0.0", "ScratchUsage-1.0.0"))
-            @test isfile(scratch_dir(global_uuid, "GlobalSpace", "ScratchUsage-1.0.0"))
-            @test isfile(orphaned_path)
-            orphanage = Pkg.TOML.parse(String(read(orphaned_path)))
-            @test haskey(orphanage, scratch_dir(su_uuid, "1.0.0"))
-            @test haskey(orphanage, scratch_dir(su_uuid, "1"))
-            @test !haskey(orphanage, scratch_dir(global_uuid, "GlobalSpace"))
+        @test isfile(scratch_dir(su_uuid, "1.0.0", "ScratchUsage-1.0.0"))
+        @test isfile(scratch_dir(global_uuid, "GlobalSpace", "ScratchUsage-1.0.0"))
+        @test isfile(orphaned_path)
+        orphanage = Pkg.TOML.parse(String(read(orphaned_path)))
+        @test haskey(orphanage, scratch_dir(su_uuid, "1.0.0"))
+        @test haskey(orphanage, scratch_dir(su_uuid, "1"))
+        @test !haskey(orphanage, scratch_dir(global_uuid, "GlobalSpace"))
 
-            # Run a GC, forcing collection to ensure that everything in the SpaceUsage
-            # namespace gets removed (but still appears in the orphanage)
-            sleep(0.2)
-            Pkg.gc(;collect_delay=Millisecond(100), io=pkgio)
-            @test !isdir(scratch_dir(su_uuid))
-            @test isdir(scratch_dir(global_uuid, "GlobalSpace"))
-            orphanage = Pkg.TOML.parse(String(read(orphaned_path)))
-            @test haskey(orphanage, scratch_dir(su_uuid, "1.0.0"))
-            @test haskey(orphanage, scratch_dir(su_uuid, "1"))
-            @test !haskey(orphanage, scratch_dir(global_uuid, "GlobalSpace"))
-        end
+        # Run a GC, forcing collection to ensure that everything in the SpaceUsage
+        # namespace gets removed (but still appears in the orphanage)
+        sleep(0.2)
+        Pkg.gc(;collect_delay=Millisecond(100), io=pkgio)
+        @test !isdir(scratch_dir(su_uuid))
+        @test isdir(scratch_dir(global_uuid, "GlobalSpace"))
+        orphanage = Pkg.TOML.parse(String(read(orphaned_path)))
+        @test haskey(orphanage, scratch_dir(su_uuid, "1.0.0"))
+        @test haskey(orphanage, scratch_dir(su_uuid, "1"))
+        @test !haskey(orphanage, scratch_dir(global_uuid, "GlobalSpace"))
     end
 end
 
-if Base.VERSION >= v"1.7"
-    using JET
+@testset "Scratch Space Advanced Keywords" begin
+    mktempdir() do depot_path
+        # Test that targeting via `depot_path` works
+        path = get_scratch!("foo"; depot_path)
+        @test startswith(path, depot_path)
 
+        # Test that this wrote the scratch access in the right place
+        usage = TOML.parsefile(Scratch.usage_toml(depot_path))
+        @test length(usage[path]) == 1
+
+        # Test that the first call gets swalled due to the time gate,
+        # but the second makes it through because we've disabled it:
+        get_scratch!("foo"; depot_path)
+        usage = TOML.parsefile(Scratch.usage_toml(depot_path))
+        @test length(usage[path]) == 1
+
+        get_scratch!("foo"; depot_path, time_gate=Second(-1))
+        usage = TOML.parsefile(Scratch.usage_toml(depot_path))
+        @test length(usage[path]) == 2
+
+        # Test that the third call gets through as well, because
+        # we lie and say the time is beyond the time gate:
+        get_scratch!("foo"; depot_path, time_gate=Second(10), curr_time = Dates.now() + Second(11))
+        usage = TOML.parsefile(Scratch.usage_toml(depot_path))
+        @test length(usage[path]) == 3
+    end
+end
+
+
+# Run a test using JET to do some static analysis for us
+if Base.VERSION >= v"1.10"
+    using JET
     @testset "test_package" begin
         test_package("Scratch")
     end
