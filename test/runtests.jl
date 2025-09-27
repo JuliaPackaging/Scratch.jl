@@ -229,41 +229,6 @@ end
     end
 end
 
-@testset "OnceInitScratch" begin
-    mktempdir() do depot_path
-        # Test basic once init
-        did_run = false
-        local temp_dir
-        ois = @OnceInitScratch("ois_foo") do dir
-            temp_dir = dir
-            @test isdir(temp_dir)
-            did_run = true
-        end
-        path = ois(; depot_path)
-        @test path != temp_dir
-        @test isdir(path)
-        @test !isdir(temp_dir)
-        @test did_run
-        did_run = false
-        path2 = ois(; depot_path)
-        @test path == path2
-        @test !did_run
-
-        # Test that a second OnceInitScratch works the same
-        ois2 = @OnceInitScratch("ois_foo") do _
-            did_run = true
-        end
-        path3 = ois2(; depot_path)
-        @test path == path3
-        @test !did_run
-
-        # Test that removing the scratch space allows it to run again
-        rm(path; force=true, recursive=true)
-        path4 = ois2(; depot_path)
-        @test path == path4
-        @test did_run
-    end
-end
 
 # Run a test using JET to do some static analysis for us
 if Base.VERSION >= v"1.10"

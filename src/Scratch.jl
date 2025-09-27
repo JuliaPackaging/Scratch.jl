@@ -1,10 +1,8 @@
 module Scratch
 import Base: UUID
 using Dates
-using FileWatching
-using FileWatching.Pidfile
 
-export with_scratch_directory, scratch_dir, get_scratch!, delete_scratch!, clear_scratchspaces!, @get_scratch!, OnceInitScratch, @OnceInitScratch
+export with_scratch_directory, scratch_dir, get_scratch!, delete_scratch!, clear_scratchspaces!, @get_scratch!
 
 const SCRATCH_DIR_OVERRIDE = Ref{Union{String,Nothing}}(nothing)
 """
@@ -206,15 +204,6 @@ function prune_timers!(path)
     return nothing
 end
 
-function validate_key(key)
-    # Verify that the key is valid (only needed here at construction time)
-    if match(r"^[a-zA-Z0-9-\._]+$", key) === nothing
-        throw(ArgumentError(
-            "invalid key \"$key\": keys may only include a-z, A-Z, 0-9, -, _, and ."
-            ))
-    end
-end
-
 """
     get_scratch!(parent_pkg = nothing, key::AbstractString, calling_pkg = parent_pkg)
 
@@ -243,7 +232,12 @@ function get_scratch!(parent_pkg::Union{Module,UUID,Nothing}, key::AbstractStrin
                       depot_path::String = first(Base.DEPOT_PATH),
                       time_gate::TimePeriod = Hour(24),
                       curr_time::DateTime = Dates.now())
-    validate_key(key)
+    # Verify that the key is valid (only needed here at construction time)
+    if match(r"^[a-zA-Z0-9-\._]+$", key) === nothing
+        throw(ArgumentError(
+            "invalid key \"$key\": keys may only include a-z, A-Z, 0-9, -, _, and ."
+            ))
+    end
     parent_pkg = find_uuid(parent_pkg)
     calling_pkg = find_uuid(calling_pkg)
     # Calculate the path and create the containing folder
@@ -319,66 +313,6 @@ macro get_scratch!(key)
     uuid = Base.PkgId(__module__).uuid
     return quote
         get_scratch!($(esc(uuid)), $(esc(key)), $(esc(uuid)))
-    end
-end
-
-struct OnceInitScratch{F}
-    init::F
-    parent_pkg::UUID
-    key::String
-    calling_pkg::UUID
-    function OnceInitScratch(init::F,
-                                 parent_pkg::Union{Module,UUID,Nothing},
-                                 key::AbstractString,
-                                 calling_pkg::Union{Module,UUID,Nothing} = parent_pkg) where {F}
-        parent_pkg = find_uuid(parent_pkg)
-        calling_pkg = find_uuid(calling_pkg)
-        validate_key(key)
-        return new{F}(init, parent_pkg, String(key), calling_pkg)
-    end
-end
-
-function (ops::OnceInitScratch)(; depot_path::String = first(Base.DEPOT_PATH),
-                      time_gate::TimePeriod = Hour(24),
-                      curr_time::DateTime = Dates.now())
-    path = scratch_path(ops.parent_pkg, ops.key; depot_path)
-    ispath(path) && return path
-
-    mkpath(dirname(path))
-    mkpidlock(string(path, ".lock")) do
-        # Re-check path within lock
-        ispath(path) && return
-
-        # Create a temporary directory in the same path
-        tempdir = mktempdir(dirname(path))
-        ops.init(tempdir)
-
-        # Atomically move the directory to the final location - after this point other
-        # users may start using the directory. The lock only prevents multiple
-        # initializations from racing each other.
-        mv(tempdir, path)
-        isdefined(Base.Filesystem, :temp_cleanup_forget) && Base.Filesystem.temp_cleanup_forget(tempdir)
-    end
-
-    # Go through the ordinary path to unify access tracking
-    ret = get_scratch!(ops.parent_pkg, ops.key, ops.calling_pkg;
-                       depot_path=depot_path,
-                       time_gate=time_gate,
-                       curr_time=curr_time)
-    @assert ret == path
-    return path
-end
-
-macro OnceInitScratch(args...)
-    uuid = Base.PkgId(__module__).uuid
-    if length(args) == 1
-        key = args[1]
-        return :(OnceInitScratch($(esc(uuid)), $(esc(key)), $(esc(uuid))))
-    elseif length(args) == 2
-        f, key = args
-        return :(OnceInitScratch($(esc(f)), $(esc(uuid)), $(esc(key)), $(esc(uuid))))
-    else
-        error("@OnceInitScratch takes either 1 or 2 arguments")
     end
 end
 
