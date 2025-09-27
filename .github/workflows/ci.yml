@@ -31,6 +31,12 @@ jobs:
           version: ${{ matrix.julia-version }}
           arch: ${{ matrix.julia-arch }}
       - uses: julia-actions/cache@v1
+      # Because we test on Julia nightly, we need to tell JET to not immediately give up
+      - name: set `JET_DEV_MODE`
+        working-directory: .
+        run: |
+          echo '[JET]
+          JET_DEV_MODE = true' >> LocalPreferences.toml
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
