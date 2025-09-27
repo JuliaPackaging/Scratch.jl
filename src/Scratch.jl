@@ -357,7 +357,7 @@ function (ops::OnceInitScratch)(; depot_path::String = first(Base.DEPOT_PATH),
         # users may start using the directory. The lock only prevents multiple
         # initializations from racing each other.
         mv(tempdir, path)
-        Base.Filesystem.temp_cleanup_forget(tempdir)
+        isdefined(Base.Filesystem, :temp_cleanup_forget) && Base.Filesystem.temp_cleanup_forget(tempdir)
     end
 
     # Go through the ordinary path to unify access tracking
